@@ -1,0 +1,11 @@
+# VS code temp
+/.vscode
+
+# build directory
+*/build
+
+# java source code
+*/src_java
+
+# .gdbinit
+.gdbinit
