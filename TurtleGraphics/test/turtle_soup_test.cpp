@@ -1,9 +1,9 @@
 #include "gtest/gtest.h"
 
 #include "turtle_soup.h"
-namespace {
 
-class TurtleSoupTest : public ::testing::Test {
+namespace {
+class TurtleSoupTest: public ::testing::Test {
 protected:
     void SetUp(void)
     {
@@ -22,13 +22,13 @@ TEST_F(TurtleSoupTest, TestConstructor) {
     ASSERT_NO_THROW(TurtleSoup());
 }
 
-TEST_F(TurtleSoupTest, PoligonAngleFromSideTest) {
+TEST_F(TurtleSoupTest, TestPoligonAngleFromSide) {
     EXPECT_NEAR(60.0, ts.calculateRegularPolygonAngle(3), 0.01f) << "FAILURE CALCULATING REGULAR TRIANGLE ANGLE";
     EXPECT_NEAR(128.57, ts.calculateRegularPolygonAngle(7), 0.01f) << "FAILURE CALCULATING REGULAR HEPTAGON ANGLE";
     EXPECT_NEAR(108.0, ts.calculateRegularPolygonAngle(5), 0.01f) << "FAILURE CALCULATING REGULAR PENTAGON ANGLE";
 }
 
-TEST_F(TurtleSoupTest, PoligonSideFromAngleTest) {
+TEST_F(TurtleSoupTest, TestPoligonSideFromAngle) {
     EXPECT_EQ(3, ts.calculatePolygonSidesFromAngle(60.0));
     EXPECT_EQ(7, ts.calculatePolygonSidesFromAngle(128.57));
     EXPECT_EQ(5, ts.calculatePolygonSidesFromAngle(108.0));

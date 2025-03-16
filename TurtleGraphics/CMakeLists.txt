@@ -44,9 +44,9 @@ add_executable(TurtleGraphicsTest "${TEST_FILES}" "${SRC_FILES}")
 
 target_include_directories(
     TurtleGraphicsTest
-    PRIVATE test
     PRIVATE src
 )
+
 target_link_libraries(TurtleGraphicsTest GTest::gtest_main)
 
 gtest_discover_tests(TurtleGraphicsTest)
