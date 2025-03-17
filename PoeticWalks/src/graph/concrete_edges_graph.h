@@ -13,10 +13,10 @@ template<typename T>
 class Edge {
     /**
      * Abstraction function:
-     *      represents an edge from source to target with weight.
+     *       - represents an edge from source to target with weight.
      * 
      * Representation invariant:
-     *      - source != target
+     *      - vertices at the both end of the edge exist in the graph
      *      - weight > 0 
      * 
      * Safety from rep exposure:
@@ -26,7 +26,7 @@ public:
     Edge() = delete;
 
     Edge(T source, T target, int weight);
-    
+
     const T source;
 
     const T target;

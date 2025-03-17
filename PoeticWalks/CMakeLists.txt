@@ -8,6 +8,16 @@ project(PoeticWalks VERSION 1.0 LANGUAGES CXX)
 set(
     SRC_FILES
     src/graph/concrete_edges_graph.tpp
+    src/graph/concrete_vertices_graph.tpp
+    src/poet/main.cpp
+)
+
+set(CMAKE_BUILD_TYPE Release)
+add_executable(PoeticWalks "${SRC_FILES}")
+
+target_include_directories(
+    PoeticWalks
+    PUBLIC src/graph
 )
 
 # Find Google Test
@@ -24,6 +34,7 @@ enable_testing()
 set(
     TEST_FILES
     test/graph/concrete_edges_graph_test.cpp
+    test/graph/concrete_vertices_graph_test.cpp
 )
 
 set(CMAKE_BUILD_TYPE Debug)

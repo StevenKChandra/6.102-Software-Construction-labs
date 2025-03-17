@@ -3,16 +3,103 @@
 #include <string>
 #include <stdexcept>
 
-#include "concrete_edges_graph.h"
+#include "concrete_vertices_graph.h"
 
 namespace {
 
-TEST(EdgesIntTest, ConstructorTest) {
-    ASSERT_NO_THROW(Edge<int>(1, 2, 0)) << "Constructor must succeed if input is valid";
-    EXPECT_THROW(Edge<int>(1, 2, -1), std::domain_error) << "Expected to throw exception when using negative weight";
+class VertexIntTest: public ::testing::Test {
+    protected:
+        void SetUp(void)
+        {
+            
+        }
+        
+        void TearDown(void)
+        {
+            delete v1;
+            delete v2;
+            delete v3;
+        }
+        Vertex<int>* v1 = new Vertex(1);
+        Vertex<int>* v2 = new Vertex(2);
+        Vertex<int>* v3 = new Vertex(3);
+    };
+
+TEST_F(VertexIntTest, ConstructorTest) {
+    ASSERT_NO_THROW(Vertex<int>(1)) << "Constructor must succeed if input is valid";
 }
+
+TEST_F(VertexIntTest, SetTargetTest) {
+    /**
+    * Testing strategy:
+    * partition on @param weight:
+    *      - zero
+    *      - positive
+    *      - negative
+    * 
+    * partition on the edge:
+    *       - exist before
+    *       - does not exist before
+    */
     
-class ConcreteEdgesGraphIntTest: public ::testing::Test {
+    // weight positive, edge does not exist before
+    EXPECT_EQ(0, (*v1).setTarget(v2, 10)) << "Expected creating new edge returns 0";
+    EXPECT_EQ(1, (*v1).getTargets().size()) << "Expected correct number of edges";
+    EXPECT_EQ(1, (*v2).getSources().size()) << "Expected correct number of edges";
+    EXPECT_EQ(10, (*v1).getTargets()[2]) << "Expected correct edge weight";
+    EXPECT_EQ(10, (*v2).getSources()[1]) << "Expected correct edge weight";
+
+    // weight zero, edge exist before
+    EXPECT_EQ(10, (*v1).setTarget(v2, 0)) << "Expected removing an edge to a target returns previous edge's weight";
+    EXPECT_EQ(0, (*v1).getTargets().size()) << "Expected correct number of edges";
+    EXPECT_EQ(0, (*v2).getSources().size()) << "Expected correct number of edges";
+
+    // weight positive, edge exist before
+    EXPECT_EQ(0, (*v1).setTarget(v3, 3)) << "Expected creating new edge returns 0";
+    EXPECT_EQ(3, (*v1).setTarget(v3, 5)) << "Expected changing edge's weight returns previous edge's weight";
+    EXPECT_EQ(1, (*v1).getTargets().size()) << "Expected correct number of edges";
+    EXPECT_EQ(1, (*v3).getSources().size()) << "Expected correct number of edges";
+    EXPECT_EQ(5, (*v1).getTargets()[3]) << "Expected correct edge weight";
+    EXPECT_EQ(5, (*v3).getSources()[1]) << "Expected correct edge weight";
+
+    // weight negative
+    EXPECT_THROW((*v3).setTarget(v1, -1), std::domain_error) << "Expected to throw exception when adding negative weight edge";
+}
+
+/**
+ * Decided not to test getter function because it is required in previous test.
+ * The test cases I wrote for getter function ended up being a subset of setTarget's test cases. 
+*/
+TEST_F(VertexIntTest, GetSourcesTest) {
+    /**
+     * Testing strategy
+     * partition on edges:
+     *      - no edges
+     *      - some edges, no edges removed in the past
+     *      - some edges, some edges removed in the past
+     */
+    
+    // no edges
+    EXPECT_EQ(0, (*v1).getSources().size()) << "Expected correct number of edges";
+    EXPECT_EQ(0, (*v2).getSources().size()) << "Expected correct number of edges";
+    EXPECT_EQ(0, (*v3).getSources().size()) << "Expected correct number of edges";
+    
+    // some edges, no removed edges in the past
+    EXPECT_EQ(0, (*v1).setTarget(v2, 10)) << "Expected creating new edge returns 0";
+    EXPECT_EQ(0, (*v1).setTarget(v3, 5)) << "Expected creating new edge returns 0";
+    EXPECT_EQ(1, (*v2).getSources().size()) << "Expected correct number of edges";
+    EXPECT_EQ(1, (*v3).getSources().size()) << "Expected correct number of edges";
+    EXPECT_EQ(10, (*v2).getSources()[1]) << "Expected correct edge weight";
+    EXPECT_EQ(5, (*v3).getSources()[1]) << "Expected correct edge weight";
+
+    // some edges, some removed edges in the past
+    EXPECT_EQ(10, (*v1).setTarget(v2, 0)) << "Expected removing an edge to a target returns previous edge's weight";
+    EXPECT_EQ(0, (*v2).getSources().size()) << "Expected correct number of edges";
+    EXPECT_EQ(1, (*v3).getSources().size()) << "Expected correct number of edges";
+    EXPECT_EQ(5, (*v3).getSources()[1]) << "Expected correct edge weight";
+}
+
+class ConcreteVerticesGraphIntTest: public ::testing::Test {
 protected:
     void SetUp(void)
     {
@@ -23,23 +110,23 @@ protected:
     {
 
     }
-    ConcreteEdgesGraph<int> graph{};
+    ConcreteVerticesGraph<int> graph{};
 };
 
-TEST_F(ConcreteEdgesGraphIntTest, ConstructorTest) {
-    ASSERT_NO_THROW(ConcreteEdgesGraph<int>()) << "Constructor must work";
+TEST_F(ConcreteVerticesGraphIntTest, ConstructorTest) {
+    ASSERT_NO_THROW(ConcreteVerticesGraph<int>()) << "Constructor must work";
 }
 
-TEST_F(ConcreteEdgesGraphIntTest, EmptyVerticesIsEmptyTest) {
-    EXPECT_EQ(0, ConcreteEdgesGraph<int>().vertices().size());
+TEST_F(ConcreteVerticesGraphIntTest, EmptyVerticesIsEmptyTest) {
+    EXPECT_EQ(0, ConcreteVerticesGraph<int>().vertices().size());
 }
 
-TEST_F(ConcreteEdgesGraphIntTest, AddTest) {
+TEST_F(ConcreteVerticesGraphIntTest, AddTest) {
     EXPECT_TRUE(graph.add(1)) << "Expected adding new vertex returns true";
     EXPECT_FALSE(graph.add(1)) << "Expected adding new vertex returns false";
 }
 
-TEST_F(ConcreteEdgesGraphIntTest, SetTest) {
+TEST_F(ConcreteVerticesGraphIntTest, SetTest) {
     /**
      * Testing strategy:
      * partition on @param source:
@@ -78,7 +165,7 @@ TEST_F(ConcreteEdgesGraphIntTest, SetTest) {
     EXPECT_THROW(graph.set(1, 2, -1), std::domain_error);
 }
 
-TEST_F(ConcreteEdgesGraphIntTest, RemoveTest) {
+TEST_F(ConcreteVerticesGraphIntTest, RemoveTest) {
     /**
      * Testing strategy:
      * partition on @param vertex:
@@ -90,7 +177,7 @@ TEST_F(ConcreteEdgesGraphIntTest, RemoveTest) {
      *      - does not exist
      */
 
-     // vertex does not exist in the graph, edge does not exist in the graph.
+        // vertex does not exist in the graph, edge does not exist in the graph.
     EXPECT_FALSE(graph.remove(1)) << "Expected removing non existing vertex returns false";
 
     
@@ -101,7 +188,7 @@ TEST_F(ConcreteEdgesGraphIntTest, RemoveTest) {
     EXPECT_EQ(0, graph.targets(1).size()) << "Expected correct number of edges";
 }
 
-TEST_F(ConcreteEdgesGraphIntTest, VerticesTest) {
+TEST_F(ConcreteVerticesGraphIntTest, VerticesTest) {
     /**
      * Testing strategy:
      * partition on vertices:
@@ -130,7 +217,7 @@ TEST_F(ConcreteEdgesGraphIntTest, VerticesTest) {
     }
 }
 
-TEST_F(ConcreteEdgesGraphIntTest, SourcesTest) {
+TEST_F(ConcreteVerticesGraphIntTest, SourcesTest) {
     /**
      * Testing strategy:
      * partition on source vertex:
@@ -169,7 +256,7 @@ TEST_F(ConcreteEdgesGraphIntTest, SourcesTest) {
     }
 }
 
-TEST_F(ConcreteEdgesGraphIntTest, TargetTest) {
+TEST_F(ConcreteVerticesGraphIntTest, TargetTest) {
     /**
      * Testing strategy:
      * partition on target vertex:

@@ -8,7 +8,9 @@
 
 template<typename T>
 Edge<T>::Edge(T source, T target, int weight):
-    source{source}, target{target}, weight{weight} { }
+    source{source}, target{target}, weight{weight} { 
+    if (weight < 0) throw std::domain_error("Edge weight cannot be negative.");
+}
 
 template<typename T>
 ConcreteEdgesGraph<T>::ConcreteEdgesGraph():
@@ -24,8 +26,8 @@ bool ConcreteEdgesGraph<T>::add(T vertex) {
 
 template<typename T>
 int ConcreteEdgesGraph<T>::set(T source, T target, int weight) {
-    if (weight < 0) throw std::domain_error("Edge weight cannot be negative.");
-    
+    if (weight < 0) throw std::domain_error("Edge weight cannot be negative."); 
+      
     int edgeIndex = findEdgeIndex(source, target);
 
     int previousWeight = 0;
