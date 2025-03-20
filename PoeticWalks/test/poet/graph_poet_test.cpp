@@ -6,8 +6,6 @@
 #include "graph_poet.h"
 #include "concrete_vertices_graph.h"
 
-std::cout<<
-
 namespace {
 
 TEST(GraphPoetTest, ConstructorTest) {
