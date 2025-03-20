@@ -17,14 +17,15 @@
 template<typename T>
 class Graph {
 public:
-    ~Graph() = default;
-
     /**
      * Create an empty graph.
      * 
      * @param <L> type of vertex labels in the graph, must be immutable
      * @return a new empty weighted directed graph
      */
+    Graph() = default; 
+
+    virtual ~Graph() {};
 
     /**
      * Add a vertex to this graph.

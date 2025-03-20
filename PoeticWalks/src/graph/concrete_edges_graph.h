@@ -58,7 +58,7 @@ private:
 public:
     ConcreteEdgesGraph();
 
-    ~ConcreteEdgesGraph();
+    ~ConcreteEdgesGraph() override;
 
     bool add(T vertex) override;
 

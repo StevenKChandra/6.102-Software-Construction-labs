@@ -107,7 +107,7 @@ private:
 public:
     ConcreteVerticesGraph();
 
-    ~ConcreteVerticesGraph();
+    ~ConcreteVerticesGraph() override;
 
     bool add(T vertex) override;
 

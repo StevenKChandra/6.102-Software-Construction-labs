@@ -133,16 +133,16 @@ std::unordered_set<T> ConcreteVerticesGraph<T>::vertices() {
 
 template<typename T>
 std::unordered_map<T, int> ConcreteVerticesGraph<T>::sources(T target) {
-    int vertexIndex;
-    if (vertexIndex = findVertexIndex(target) == -1) return std::unordered_map<T, int>();
+    int vertexIndex = findVertexIndex(target);
+    if (vertexIndex == -1) return std::unordered_map<T, int>();
 
     return (*vertices_[vertexIndex]).getSources();
 }
 
 template<typename T>
 std::unordered_map<T, int> ConcreteVerticesGraph<T>::targets(T source) {
-    int vertexIndex;
-    if (vertexIndex = findVertexIndex(source) == -1) return std::unordered_map<T, int>();
+    int vertexIndex = findVertexIndex(source);
+    if (vertexIndex == -1) return std::unordered_map<T, int>();
 
     return (*vertices_[vertexIndex]).getTargets();
 }

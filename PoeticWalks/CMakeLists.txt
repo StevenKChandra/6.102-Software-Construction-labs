@@ -9,15 +9,16 @@ set(
     SRC_FILES
     src/graph/concrete_edges_graph.tpp
     src/graph/concrete_vertices_graph.tpp
-    src/poet/main.cpp
+    src/poet/graph_poet.cpp
 )
 
 set(CMAKE_BUILD_TYPE Release)
-add_executable(PoeticWalks "${SRC_FILES}")
+add_executable(PoeticWalks src/poet/main.cpp "${SRC_FILES}")
 
 target_include_directories(
     PoeticWalks
     PUBLIC src/graph
+    PUBLIC src/poet
 )
 
 # Find Google Test
@@ -35,6 +36,7 @@ set(
     TEST_FILES
     test/graph/concrete_edges_graph_test.cpp
     test/graph/concrete_vertices_graph_test.cpp
+    test/poet/graph_poet_test.cpp
 )
 
 set(CMAKE_BUILD_TYPE Debug)
@@ -43,6 +45,7 @@ add_executable(PoeticWalksTest "${TEST_FILES}" "${SRC_FILES}")
 target_include_directories(
     PoeticWalksTest
     PRIVATE src/graph
+    PRIVATE src/poet
 )
 
 target_link_libraries(PoeticWalksTest GTest::gtest_main)
