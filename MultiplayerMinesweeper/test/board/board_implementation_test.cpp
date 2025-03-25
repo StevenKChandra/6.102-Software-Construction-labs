@@ -4,11 +4,11 @@
 #include <memory>
 #include <iostream>
 
-#include "board.h"
+#include "board_implementation.h"
 
 namespace {
 
-class BoardTest: public ::testing::Test {
+class BoardImplementationTest: public ::testing::Test {
 protected:
     void SetUp(void) {
         front = new char[10 * 11] { "UUUUUUUUUU\nUUUUUUUUUU\nUUUUUUUUUU\nUUUUUUUUUU\nUUUUUUUUUU\nUUUUUUUUUU\nUUUUUUUUUU\nUUUUUUUUUU\nUUUUUUUUUU\nUUUUUUUUUU" };
@@ -16,33 +16,61 @@ protected:
         boundaries  = new char[10 * 11] { "1110000000\n1010000000\n1110011111\n0012220121\n0011121121\n1112221111\n0100010100\n1100011111\n0111000010\n0101000011" };
     }
     void TearDown(void) {
-        delete front;
-        delete back;
-        delete boundaries;
+        delete[] front;
+        delete[] back;
+        delete[] boundaries;
     }
     void check_board_state() {
         EXPECT_STREQ(front, output["front"].get()) << "Expected correct board's frontside";
         EXPECT_STREQ(back, output["back"].get()) << "Expected correct board's backside";
         EXPECT_STREQ(boundaries, output["boundaries"].get()) << "Expected correct board's bomb boundaries number";    
     }
-    Board board = Board(10, 10, 10, 0);
+    BoardImplementation board = BoardImplementation(10, 10, 10, 0);
     std::unordered_map<std::string, std::unique_ptr<char []>> output;
     char *front;
     char *back;
     char *boundaries;
 };
 
-TEST_F(BoardTest, ConstructorTest) {
-    ASSERT_NO_THROW(Board(10, 10, 10, 0)) << "Custructor must succeed if the parameters are valid";
-    EXPECT_THROW(Board(10, 0, 10, 0), std::domain_error) << "Expected constructor to throw error when one of the size is non positive";
-    EXPECT_THROW(Board(8, 15, 200, 0), std::runtime_error) << "Expected constructor to throw error when bomb count is bigger than board size";
+TEST_F(BoardImplementationTest, ConstructorTest) {
+    ASSERT_NO_THROW(BoardImplementation(10, 10, 10, 0)) << "Custructor must succeed if the parameters are valid";
+    EXPECT_THROW(BoardImplementation(10, 0, 10, 0), std::domain_error) << "Expected constructor to throw error when one of the size is non positive";
+    EXPECT_THROW(BoardImplementation(8, 15, 200, 0), std::runtime_error) << "Expected constructor to throw error when bomb count is bigger than board size";
 }
 
-TEST_F(BoardTest, PrintTest) {
-    
+TEST_F(BoardImplementationTest, PrintTest) {
+    /**
+     * Testing strategy
+     * partition on number of dug tiles:
+     *      - no dug tiles
+     *      - empty tiles are dug
+     *      - a bomb is dug
+     * 
+     * partition on number of flags:
+     *      - zero
+     *      - one flag
+     *      - multiple flags
+     */
+
+    // no dug tile, zero flag
+    char *expected = new char[10 * 11] { "----------\n----------\n----------\n----------\n----------\n----------\n----------\n----------\n----------\n----------" };
+    EXPECT_STREQ(expected, board.print().get());
+
+    // empty dug tiles, one flag
+    board.flag(0, 5);
+    board.dig(0, 9);
+    delete[] expected;
+    expected = new char [10 * 11] { "--1  F    \n--1       \n--1  11111\n--1222----\n----------\n----------\n----------\n----------\n----------\n----------" };
+
+    // a bomb is dug, multiple flags
+    board.flag(6, 3);
+    board.flag(7, 3);
+    board.dig(6, 0);
+    delete[] expected;
+    expected = new char [10 * 11] { "--1  F    \n--1       \n111  11111\n  1222----\n  1-------\n  1-------\n   F------\n   F------\n 1--------\n 1--------" };
 }
 
-TEST_F(BoardTest, DigTest) {
+TEST_F(BoardImplementationTest, DigTest) {
     /**
      * Testing strategy
      * partition on tile condition:
@@ -90,7 +118,7 @@ TEST_F(BoardTest, DigTest) {
     check_board_state();
 }
 
-TEST_F(BoardTest, FlagTest) {
+TEST_F(BoardImplementationTest, FlagTest) {
     /**
      * Testing strategy:
      * partition on tiles:
@@ -130,12 +158,12 @@ TEST_F(BoardTest, FlagTest) {
     check_board_state();
 }
 
-TEST_F(BoardTest, DeflagTest) {
+TEST_F(BoardImplementationTest, DeflagTest) {
     /**
      * Testing strategy:
      * partition on tiles:
      *      - coordiate out of bound
-     *      - not flagged, without boomb
+     *      - not flagged, without bomb
      *      - flagged, without bomb
      *      - not flagged, with bomb
      *      - flagged with bound

@@ -1,4 +1,4 @@
-#include "board.h"
+#include <board_implementation.h>
 
 #include <algorithm>
 #include <random>
@@ -12,17 +12,10 @@ static inline void copy_array(T *target, T *source, int size) {
     }
 }
 
-Board::Board(const Board& that): read_lock{}, write_lock{} {
-    this->x_size = that.x_size;
-    this->y_size = that.y_size;
-    
-    int size = that.x_size * that.y_size;
-    this->front = new TILE_DISPLAY[size];
-    copy_array(this->front, that.front, size);
-}
-
-Board& Board::operator=(const Board& that) {
-    this->read_lock.lock();
+BoardImplementation::BoardImplementation(const BoardImplementation& that):
+Board(0, 0, 0, 0), x_size{}, y_size{}, threadLock{} {
+    std::unique_lock<std::shared_mutex> this_lock(threadLock);
+    std::unique_lock<std::shared_mutex> that_lock(that.threadLock);
 
     this->x_size = that.x_size;
     this->y_size = that.y_size;
@@ -30,38 +23,61 @@ Board& Board::operator=(const Board& that) {
     int size = that.x_size * that.y_size;
     this->front = new TILE_DISPLAY[size];
     copy_array(this->front, that.front, size);
+    this->back = new TILE_HIDDEN[size];
+    copy_array(this->back, that.back, size);
+    this->boundaries = new int[size];
+    copy_array(this->boundaries, that.boundaries, size);
+}
 
-    this->read_lock.unlock();
+BoardImplementation& BoardImplementation::operator=(const BoardImplementation& that) {
+    std::unique_lock<std::shared_mutex> this_lock(threadLock);
+    std::unique_lock<std::shared_mutex> that_lock(that.threadLock);
+
+    this->x_size = that.x_size;
+    this->y_size = that.y_size;
+    
+    int size = that.x_size * that.y_size;
+    this->front = new TILE_DISPLAY[size];
+    copy_array(this->front, that.front, size);
+    this->back = new TILE_HIDDEN[size];
+    copy_array(this->back, that.back, size);
+    this->boundaries = new int[size];
+    copy_array(this->boundaries, that.boundaries, size);
     
     return *this;
 }
 
-Board::Board(Board&& that): read_lock{}, write_lock{} {
+BoardImplementation::BoardImplementation(BoardImplementation&& that):
+Board(0, 0, 0, 0), x_size{}, y_size{}, threadLock{} { 
+    std::unique_lock<std::shared_mutex> this_lock(threadLock);
+
     this->x_size = that.x_size;
     this->y_size = that.y_size;
     this->front = that.front;
 
     that.front = nullptr;
+    that.back = nullptr;
+    that.boundaries = nullptr;
 }
 
-Board& Board::operator=(Board&& that) {
-    this->read_lock.lock();
+BoardImplementation& BoardImplementation::operator=(BoardImplementation&& that) {
+    std::unique_lock<std::shared_mutex> this_lock(threadLock);
 
     this->x_size = that.x_size;
     this->y_size = that.y_size;
     this->front = that.front;
 
     that.front = nullptr;
-
-    this->read_lock.unlock();
+    that.back = nullptr;
+    that.boundaries = nullptr;
     
     return *this;
 }
 
-Board::~Board() {
-    delete this->front;
-    delete this->back;
-    delete this->boundaries;
+BoardImplementation::~BoardImplementation() {
+    delete[] this->front;
+    delete[] this->back;
+    delete[] this->boundaries;
 }
 
 static inline void place_bomb(TILE_HIDDEN *back, int size, int bomb_count, uint64_t seed) {
@@ -106,10 +122,9 @@ static inline void calculate_boundary(int *boundaries, TILE_HIDDEN* back, int y_
     }
 }
 
-Board::Board(int y_size, int x_size, int bomb_count, uint64_t seed):
-y_size{y_size}, x_size{x_size}, front{nullptr}, back{nullptr}, boundaries{nullptr}, read_lock{}, write_lock{}, debug{debug} {
-    std::shared_lock<std::shared_mutex> read_guard(read_lock);
-    std::unique_lock<std::mutex> write_guard(write_lock);
+BoardImplementation::BoardImplementation(int y_size, int x_size, int bomb_count, uint64_t seed):
+Board(0, 0, 0, 0), y_size{y_size}, x_size{x_size}, front{nullptr}, back{nullptr}, boundaries{nullptr}, threadLock{} {
+    std::unique_lock<std::shared_mutex> write_lock(threadLock);
 
     if (y_size < 1) throw std::domain_error("y_size must be positive.");
     if (x_size < 1) throw std::domain_error("x_size must be positive.");
@@ -129,8 +144,8 @@ y_size{y_size}, x_size{x_size}, front{nullptr}, back{nullptr}, boundaries{nullpt
     calculate_boundary(boundaries, back, y_size, x_size);
 }
 
-std::unique_ptr<char[]> Board::print() {
-    std::shared_lock<std::shared_mutex> read_guard(read_lock);
+std::unique_ptr<char[]> BoardImplementation::print() {
+    std::shared_lock<std::shared_mutex> read_lock(threadLock);
 
     int x_length = x_size + 1;
     int y_length = y_size;
@@ -138,9 +153,10 @@ std::unique_ptr<char[]> Board::print() {
     std::unique_ptr<char[]> output(new char[size]);
     for (int i = 0; i < y_size; i++) {
         for (int j = 0; j < x_size; j++) {
-            if (front[i * x_size + j] == TILE_DISPLAY::UNTOUCHED) output[i * x_length + j] = 'U';
-            if (front[i * x_size + j] == TILE_DISPLAY::FLAGGED) output[i * x_length + j] = 'F';
-            if (front[i * x_size + j] == TILE_DISPLAY::DUG) output[i * x_length + j] = 'D';
+            if (front[i * x_size + j] == TILE_DISPLAY::UNTOUCHED) output[i * x_length + j] = '-';
+            else if (front[i * x_size + j] == TILE_DISPLAY::FLAGGED) output[i * x_length + j] = 'F';
+            else if (boundaries[i * x_size + j] == 0) output[i * x_length + j] = ' ';
+            else output[i * x_length + j] = '0' + boundaries[i * x_size + j];
         }
         output[(i + 1) * x_length - 1] = '\n';
     }
@@ -166,14 +182,15 @@ static void recursive_dig(TILE_DISPLAY *front, int *boundaries, int y, int x, in
     }
 }
 
-bool Board::dig(int y, int x) noexcept {
-    std::shared_lock<std::shared_mutex> read_guard(read_lock);
+bool BoardImplementation::dig(int y, int x) noexcept {
+    std::shared_lock<std::shared_mutex> read_guard(threadLock);
 
     if (is_out_of_bound(y, x , y_size, x_size)) return true;
 
     if (front[y * x_size + x] == TILE_DISPLAY::DUG || front[y * x_size + x] == TILE_DISPLAY::FLAGGED) return true;
     
-    std::unique_lock<std::mutex> write_guard(write_lock);
+    read_guard.unlock();
+    std::unique_lock<std::shared_mutex> write_guard(threadLock);
     if (back[y * x_size + x] == TILE_HIDDEN::EMPTY) {
         recursive_dig(front, boundaries, y, x, y_size, x_size);
         return true;
@@ -186,25 +203,25 @@ bool Board::dig(int y, int x) noexcept {
     return false;
 }
 
-void Board::flag(int y, int x) noexcept {
+void BoardImplementation::flag(int y, int x) noexcept {
     if (is_out_of_bound(y, x , y_size, x_size)) return;
     
+    std::unique_lock<std::shared_mutex> write_lock(threadLock);
     if (front[y * x_size + x] == TILE_DISPLAY::UNTOUCHED) {
         front[y * x_size + x] = TILE_DISPLAY::FLAGGED;
     }
 }
 
-void Board::deflag(int y, int x) noexcept {
+void BoardImplementation::deflag(int y, int x) noexcept {
     if (is_out_of_bound(y, x , y_size, x_size)) return;
 
-    std::shared_lock<std::shared_mutex> read_guard(read_lock);
+    std::unique_lock<std::shared_mutex> write_lock(threadLock);
     if (front[y * x_size + x] == TILE_DISPLAY::FLAGGED) {
-        std::unique_lock<std::mutex> write_guard(write_lock);
         front[y * x_size + x] = TILE_DISPLAY::UNTOUCHED;
     }
 }
 
-std::unordered_map<std::string, std::unique_ptr<char []>> Board::print_debug() {
+std::unordered_map<std::string, std::unique_ptr<char []>> BoardImplementation::print_debug() {
     int x_length = x_size + 1;
     int y_length = y_size;
     int size = y_length * x_length;

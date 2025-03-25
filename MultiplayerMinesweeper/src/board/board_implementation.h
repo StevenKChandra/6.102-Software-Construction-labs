@@ -1,38 +1,22 @@
-#ifndef BOARD_H
-#define BOARD_H
+#ifndef BOARD_IMPLEMENTATION_H
+#define BOARD_IMPLEMENTATION_H
 
-#include <memory>
-#include <mutex>
-#include <shared_mutex>
-#include <string>
-#include <unordered_map>
+#include "board.h"
 
-enum struct TILE_DISPLAY {
-    UNTOUCHED,
-    FLAGGED,
-    DUG,
-};
-
-enum struct TILE_HIDDEN {
-    BOMB,
-    EMPTY,
-};
-
-/**
- * A mutable minesweeper board consisting tiles of specified length and width.
- * All tiles start untouched, some tiles have bomb hidden.
- */
-class Board {
-    /**
-     * Abstraction function:
-     *      -
-     * 
-     */
+class BoardImplementation: public Board {
 public:
-    Board() = delete;
-    
-    virtual ~Board() {};    
-    
+    BoardImplementation() = delete;
+
+    BoardImplementation(const BoardImplementation& that);
+
+    BoardImplementation& operator=(const BoardImplementation& that);
+
+    BoardImplementation(BoardImplementation&& that);
+
+    BoardImplementation& operator=(BoardImplementation&& that);    
+
+    ~BoardImplementation();
+
     /**
      * Constructs a new board given the width, length, and bomb count.
      * The bombs are spread with pseudo-random function.
@@ -47,14 +31,14 @@ public:
      * @throw std::domain_error if length or width is not positive or bomb_count is negative
      *        std::runtime_error if bomb_count is bigger than the size of the board
      */
-    Board(int y_size, int x_size, int bomb_count, uint64_t seed = (uint64_t) std::time(nullptr)) {};
+    BoardImplementation(int y_size, int x_size, int bomb_count, uint64_t seed = (uint64_t) std::time(nullptr));
 
-    /**
+        /**
      * Write the player's board representation in a pointer of char (buffer).
      * 
      * @return a unique pointer to the buffer.
      */
-    virtual std::unique_ptr<char[]> print() = 0;
+    virtual std::unique_ptr<char[]> print() override;
 
     /**
      * Digs the tile at position given by the x and y input.
@@ -63,7 +47,7 @@ public:
      * @param y the y position of the target tile.
      * @return false if dig succeed and dug a bomb, true otherwise
      */
-    virtual bool dig(int y, int x) noexcept = 0;
+    virtual bool dig(int y, int x) noexcept override;
 
     /**
      * Flags the tile at position given by the x and y input
@@ -71,7 +55,7 @@ public:
      * @param x the x position of the target tile.
      * @param y the y position of the target tile.
      */
-    virtual void flag(int y, int x) noexcept = 0;
+    virtual void flag(int y, int x) noexcept override;
     
     /**
      * Deflags the tile at position given by the x and y input
@@ -79,7 +63,23 @@ public:
      * @param x the x position of the target tile.
      * @param y the y position of the target tile.
      */
-    virtual void deflag(int y, int x) noexcept = 0;
+    virtual void deflag(int y, int x) noexcept override;
+
+    /**
+     * NOT FOR CLIENT USE, FOR DEBUGGING PURPOSE ONLY.
+     * Write the player's board representation in a map of pointer of char (buffer).
+     */
+    std::unordered_map<std::string, std::unique_ptr<char []>> print_debug();
+
+private:
+    int y_size;
+    int x_size;
+
+    TILE_DISPLAY *front;
+    TILE_HIDDEN *back;
+    int *boundaries;
+
+    mutable std::shared_mutex threadLock;
 };
 
 #endif

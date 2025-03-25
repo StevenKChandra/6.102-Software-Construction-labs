@@ -7,7 +7,7 @@ project(MultiplayerMinesweeper VERSION 1.0 LANGUAGES CXX)
 
 set(
     SRC_FILES
-    src/board/board.cpp
+    src/board/board_implementation.cpp
 )
 
 include(FetchContent)
@@ -21,7 +21,7 @@ enable_testing()
 
 set (
     TEST_FILES
-    test/board/board_test.cpp
+    test/board/board_implementation_test.cpp
 )
 
 set(CMAKE_BUILD_TYPE Debug)
