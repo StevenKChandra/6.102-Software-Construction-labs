@@ -1,6 +1,7 @@
 #include "util.h"
 
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <stdexcept>
 #include <sys/socket.h>
@@ -81,4 +82,10 @@ void Util::configure_client_context(SSL_CTX* ctx) {
     if (!SSL_CTX_load_verify_locations(ctx, "cert.pem", NULL)) {
         throw std::runtime_error("Unable to verify public key certificate");
     }
+}
+
+void Util::set_non_blocking(int fd) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags == -1) throw std::runtime_error("Cannot get socket status flag");
+    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }

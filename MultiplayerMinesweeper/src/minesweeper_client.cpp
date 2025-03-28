@@ -40,7 +40,7 @@ void MinesweeperClient::connect() {
     Util::configure_client_context(impl->ctx);
 
     SSL *ssl = SSL_new(impl->ctx);
-    if (!SSL_set_fd(ssl, impl->socket)) throw std::runtime_error("SSL structure creatopm failed");
+    if (!SSL_set_fd(ssl, impl->socket)) throw std::runtime_error("Binding fd to ssl failed");
 
     SSL_set_tlsext_host_name(ssl, impl->server_ip);
     if (!SSL_set1_host(ssl, impl->server_ip)) throw std::runtime_error("Hostname check failed");
