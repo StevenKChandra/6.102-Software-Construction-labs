@@ -1,16 +1,8 @@
 #ifndef MINESWEEPER_SERVER_H
 #define MINESWEEPER_SERVER_H
 
-#include <mutex>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <stdexcept>
-#include <thread>
-
 #include "board.h"
 #include "board_implementation.h"
-
-#define PORT 9023
 
 class MinesweeperServer {
 private:

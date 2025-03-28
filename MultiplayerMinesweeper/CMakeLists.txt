@@ -40,21 +40,41 @@ set_property(TARGET OpenSSL::Crypto PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${OPE
 add_dependencies(OpenSSL::Crypto OpenSSL)
 
 set(
-    SRC_FILES
+    SERVER_SRC_FILES
     src/board_implementation.cpp
     src/minesweeper_server.cpp
+    src/util.cpp
 )
 
 set(CMAKE_BUILD_TYPE Release)
-add_executable(MultiplayerMinesweeper "${SRC_FILES}")
+add_executable(MultiplayerMinesweeperServer "${SERVER_SRC_FILES}")
 
 target_include_directories(
-    MultiplayerMinesweeper
+    MultiplayerMinesweeperServer
     PUBLIC include
 )
 
 target_link_libraries(
-    MultiplayerMinesweeper
+    MultiplayerMinesweeperServer
+    OpenSSL::SSL
+    OpenSSL::Crypto
+)
+
+set(
+    CLIENT_SRC_FILES
+    src/minesweeper_client.cpp
+    src/util.cpp
+)
+
+add_executable(MultiplayerMinesweeperClient "${CLIENT_SRC_FILES}")
+
+target_include_directories(
+    MultiplayerMinesweeperClient
+    PUBLIC include
+)
+
+target_link_libraries(
+    MultiplayerMinesweeperClient
     OpenSSL::SSL
     OpenSSL::Crypto
 )
@@ -71,10 +91,17 @@ enable_testing()
 set (
     TEST_FILES
     test/board_implementation_test.cpp
+    test/minesweeper_server_test.cpp
+    test/minesweeper_client_test.cpp
 )
 
 set(CMAKE_BUILD_TYPE Debug)
-add_executable(MultiplayerMinesweeperTest "${TEST_FILES}" "${SRC_FILES}")
+add_executable(
+    MultiplayerMinesweeperTest
+    "${TEST_FILES}"
+    "${SERVER_SRC_FILES}"
+    "${CLIENT_SRC_FILES}"
+)
 
 target_include_directories(
     MultiplayerMinesweeperTest

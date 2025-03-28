@@ -1,101 +1,81 @@
 #include "minesweeper_server.h"
 
-#include <iostream>
 #include <cstring>
-#include <functional>
-#include <sys/socket.h>
+#include <iostream>
+#include <mutex>
 #include <netinet/in.h>
+#include <openssl/err.h>
+#include <sys/socket.h>
 #include <unistd.h>
+#include <thread>
 
+#include "util.h"
+
+#define PORT 9023
 #define BUFFER_LEN 1024
 
 struct MinesweeperServer::Private {
-    int port;
-    int server_socket;
     bool running;
+    int port;
+    int socket;
     SSL_CTX *ctx;
 
-    std::unordered_map<int, std::thread> client_threads;
+    std::unordered_map<int, std::thread*> client_threads;
     std::mutex client_mutex;
 
     Private(int port);
     ~Private();
 
-    void accept_clients(Private *impl);
-    void handle_client(Private *impl, int client_socket);
-    void disconnect_client(Private *impl, int client_socket);
+    void accept_clients();
+    void handle_client(int client_socket);
 };
 
 MinesweeperServer::Private::Private(int port):
-port{port}, server_socket{-1}, running{false}, ctx{nullptr}, client_threads{}, client_mutex{} {}
+running{false}, port{port}, socket{-1}, ctx{nullptr}, client_threads{}, client_mutex{} {}
 
 MinesweeperServer::MinesweeperServer(int port):
 impl(new Private{port}) {}
                                                                                         
 void MinesweeperServer::start() {
-    impl->server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (impl->server_socket < 0) throw std::runtime_error("socket creation failed");
-
-    sockaddr_in address{};
-    address.sin_family = AF_INET6;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(PORT);
-    if(bind(impl->server_socket, (sockaddr*) &address, sizeof(address)) < 0) {
-        close(impl->server_socket);
-        throw std::runtime_error("bind failed");
-    }
-    if (listen(impl->server_socket, 5) < 0) throw std::runtime_error("listen failed");
-    
-    impl->ctx = SSL_CTX_new(TLS_server_method());
-    if (impl->ctx == nullptr) throw std::runtime_error("Unable to create SSL context");
-
-    if (SSL_CTX_use_certificate_chain_file(impl->ctx, "cert.pem") <= 0) {
-        throw std::runtime_error("Unable use certificate file");
-    }
-    if (SSL_CTX_use_PrivateKey_file(impl->ctx, "key.pem", SSL_FILETYPE_PEM) <= 0) {
-        throw std::runtime_error("Unable use certificate file");
-    }
-    
-    std::thread(&Private::accept_clients, impl, impl).detach();
+    impl->socket = Util::create_server_socket(impl->port);
+    impl->ctx = Util::create_context(true);
+    Util::configure_server_context(impl->ctx);
+    impl->running = true;
+    std::thread(&Private::accept_clients, impl).detach();
 }
 
-void MinesweeperServer::Private::accept_clients(Private* impl) {
-    while (impl->running) {
-        sockaddr_in clientAddress;
-        socklen_t clilen = sizeof(clientAddress);
+void MinesweeperServer::Private::accept_clients() {
+    sockaddr_in clientAddress;
+    socklen_t clilen = sizeof(clientAddress);
 
+    while (running) {
         int client_socket = accept(
-            impl->server_socket,
+            socket,
             (struct sockaddr*) &clientAddress,
             &clilen
         );
 
         if (client_socket < 0) {
-            if (!impl->running) break;
+            if (!running) break;
             std::cerr << "Accept failed\n";
             continue;
         }
 
         std::cout << "New client connected!\n";
-        impl->client_mutex.lock();
-
-        if (!impl->running) {
-            impl->client_mutex.unlock();
-            return;
+        client_mutex.lock();
+        if (client_threads.find(client_socket) != client_threads.end()) {
+            if (client_threads[client_socket]->joinable()) {
+                client_threads[client_socket]->join();
+            }
+            delete client_threads[client_socket];  
         }
-
-        impl->client_threads[client_socket] = std::thread(
-            &Private::handle_client,
-            this,
-            this,
-            client_socket
-        );
-        impl->client_mutex.unlock();
+        client_threads[client_socket] = new std::thread( &Private::handle_client, this, client_socket);
+        client_mutex.unlock();
     }
 }
 
-void MinesweeperServer::Private::handle_client(Private *impl, int client_socket) {
-    SSL *ssl = SSL_new(impl->ctx);
+void MinesweeperServer::Private::handle_client(int client_socket) {
+    SSL *ssl = SSL_new(ctx);
 
     if (!SSL_set_fd(ssl, client_socket)) {
         std::cerr<< "SSL setup failed\n";
@@ -104,7 +84,8 @@ void MinesweeperServer::Private::handle_client(Private *impl, int client_socket)
     }
 
     if (SSL_accept(ssl) <= 0) {
-        std::cerr<< "SSL connection to client failed\n";
+        ERR_print_errors_fp(stderr);
+        std::cerr << "SSL connection to client failed\n";
         SSL_free(ssl);
         close(client_socket);
         return;
@@ -117,25 +98,29 @@ void MinesweeperServer::Private::handle_client(Private *impl, int client_socket)
 
     char buffer[BUFFER_LEN] {};
     int read_len{0};
-    while (impl->running) {
+    while (running) {
         read_len = SSL_read(ssl, buffer, BUFFER_LEN);
+
+        if (read_len < 0) {
+            std::cout << "SSL_read retuned " << read_len << '\n';
+            SSL_free(ssl);
+            close(client_socket);
+            return;
+        }
         
         if (read_len == 0) {
             std::cout << "Client closed connection\n";
             break;
         }
 
-        if (read_len < 0) {
-            std::cerr << "SSL_read retuned " << read_len << '\n';
-            break;
-        }
-
-        buffer[BUFFER_LEN - 1] = '\0';
+        buffer[read_len] = '\0';
         
-        if (strcmp(buffer, "kill\n") == 0) {
+        if (strcmp(buffer, "disconnect\n") == 0) {
             std::cout << "Received kill connection command\n";
             break;
         }
+
+        write(1, buffer, read_len);
     }
 
     SSL_shutdown(ssl);
@@ -147,16 +132,17 @@ void MinesweeperServer::Private::handle_client(Private *impl, int client_socket)
 
 void MinesweeperServer::stop() {
     impl -> running = false;
-    if (impl->server_socket != -1) {
-        close(impl->server_socket);
-        impl->server_socket = -1;
+    if (impl->socket != -1) {
+        close(impl->socket);
+        impl->socket = -1;
     }
 
     impl->client_mutex.lock();
-    for (std::pair<const int, std::thread>& client: impl->client_threads) {
-        if (!client.second.joinable()) continue;
+    for (std::pair<const int, std::thread*>& client: impl->client_threads) {
+        if (!client.second->joinable()) continue;
         close(client.first);
-        client.second.join();
+        client.second->join();
+        delete client.second;
     }
     impl->client_threads.clear();
     impl->client_mutex.unlock();
@@ -174,6 +160,7 @@ MinesweeperServer::~MinesweeperServer() {
 
 int main() {
     MinesweeperServer server{PORT};
+    server.start();
     char buffer[1024];
     read(0, buffer, 1024);
     return 0;
