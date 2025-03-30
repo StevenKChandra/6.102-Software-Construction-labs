@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <openssl/err.h>
+#include <poll.h>
 #include <unistd.h>
 
 #include "util.h"
@@ -53,24 +54,39 @@ void MinesweeperClient::connect() {
     memset(buffer, 0, BUFFER_LEN);
     
     while (true) {
-        int read_len = read(0, buffer, BUFFER_LEN);
+        struct pollfd pfd[2];
+        struct pollfd *stdin_pfd = pfd;
+        struct pollfd *socket_pfd = (pfd + 1);
+        stdin_pfd->fd = 0;
+        stdin_pfd->events = POLLIN;
+        socket_pfd->fd = impl->socket;
+        socket_pfd->events = 0;
 
-        if (read_len == -1) throw std::runtime_error("Read from stdin failed");
+        if (poll(pfd, 2, 1000) == 0) {
+            write(impl->socket, buffer, 0);
+            continue;
+        }
+
+        // other end of stream socket is closed
+        if (socket_pfd->revents & (POLLERR | POLLHUP)) {
+            std::cout << "Server closed connection!\n";
+            break;
+        }
+
+        int read_len = read(0, buffer, BUFFER_LEN);
 
         int write_len = SSL_write(ssl, buffer, read_len);
 
         if (write_len <= 0) {
-            std::cout << "Server closed connection\n";
+            std::cout << "Send message failed\n";
             break;
         }
         
-        if (strcmp("disconnect\n", buffer) == 0) break;
+        if (strcmp("disconnect\n", buffer) == 0) {
+            std::cout << "Disconnecting...\n";
+            break;
+        }
     }
-
-    std::cout << "Client exiting...\n";
-    
-    SSL_shutdown(ssl);
-    SSL_free(ssl);
 }
 
 int main() {

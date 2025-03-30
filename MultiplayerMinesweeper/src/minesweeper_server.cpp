@@ -62,7 +62,7 @@ void MinesweeperServer::Private::accept_clients() {
             continue;
         }
 
-        Util::set_non_blocking(client_socket);
+        // Util::set_non_blocking(client_socket);
 
         std::cout << "New client connected!\n";
         client_mutex.lock();
@@ -90,91 +90,50 @@ void MinesweeperServer::Private::handle_client(int client_socket) {
         return;
     }
 
-    while (true) {
-        int return_code = SSL_accept(ssl);
-        if (return_code == 1) {
-            std::cout << "Client SSL connection accepted\n";
-            break;
-        }
-        int error_code = SSL_get_error(ssl, return_code);
-        if (error_code == SSL_ERROR_WANT_READ || error_code == SSL_ERROR_WANT_WRITE) {
-            struct pollfd pfd{};
-            pfd.fd = client_socket;
-            pfd.events = (error_code == SSL_ERROR_WANT_READ) ? POLLIN : POLLOUT;
-            poll(&pfd, 1, -1);
-        }
-        else {
-            ERR_print_errors_fp(stderr);
-            std::cerr << "SSL connection to client failed\n";
-            SSL_free(ssl);
-            close(client_socket);
-            return;
-        }
+    if (SSL_accept(ssl) <= 0) {
+        std::cerr<< "SSL connection to client failed\n";
+        SSL_free(ssl);
+        close(client_socket);
+        return;
     }
+
     // const char welcomeMsg[] = "Welcome to the Minesweeper Server!\n";
     // SSL_write(ssl, welcomeMsg, strlen(welcomeMsg));
 
-    char buffer[BUFFER_LEN] {};
-    int read_len{0};
-
-    struct pollfd pfd{};
-    pfd.fd = client_socket;
-    pfd.events = POLLIN;
-
     while (running) {
+        struct pollfd pfd{};
+        pfd.fd = client_socket;
+        pfd.events = POLLIN;
 
-        poll(&pfd, 1, 1000);
-
-        if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) {
+        // no events or error
+        if (poll(&pfd, 1, 1000) == 0) continue;
+        
+        // the server side stream socket is closed
+        if (pfd.revents & POLLNVAL) {
             SSL_free(ssl);
-            if ((pfd.revents & POLLNVAL)) return;
-            std::cerr << "Socket closed or hanged up\n";
-            close(socket);
-            return;
+            break;
+        }
+        
+        // other end of stream socket is closed
+        if (pfd.revents & (POLLERR | POLLHUP)) {
+            std::cout << "Client closed connection!\n";
+            SSL_free(ssl);
+            close(client_socket);
+            break;
         }
 
-        if (pfd.revents && POLLIN) {
-            read_len = SSL_read(ssl, buffer, BUFFER_LEN);
-            
-            if (read_len < 0) {
-                int error_code = SSL_get_error(ssl, read_len);
-                if (error_code == SSL_ERROR_WANT_READ) continue;
-                std::cout << "SSL_read retuned " << read_len << '\n';
-                SSL_free(ssl);
-                close(client_socket);
-                return;
-            }
-            
-            if (read_len == 0) {
-                std::cout << "Client closed connection\n";
-                break;
-            }
-    
-            buffer[read_len] = '\0';
-            
-            if (strcmp(buffer, "disconnect\n") == 0) {
-                std::cout << "Received kill connection command\n";
-                break;
-            }
-    
-            write(1, buffer, read_len);
-        }
+        // there is data to read
+        char buffer[BUFFER_LEN] {};
+        int read_len{0};
+        read_len = SSL_read(ssl, buffer, BUFFER_LEN);
+        buffer[read_len] = '\0';
+        write(1, buffer, read_len);
     }
-
-    SSL_shutdown(ssl);
-    SSL_free(ssl);
-    close(client_socket);
-    
-    std::cout << "Connection with client closed\n";
     return;
 }
 
 void MinesweeperServer::stop() {
     impl -> running = false;
-    if (impl->socket != -1) {
-        close(impl->socket);
-        impl->socket = -1;
-    }
 
     impl->client_mutex.lock();
     for (std::pair<const int, std::thread*>& client: impl->client_threads) {
@@ -186,7 +145,14 @@ void MinesweeperServer::stop() {
     impl->client_threads.clear();
     impl->client_mutex.unlock();
 
+    
     SSL_CTX_free(impl->ctx);
+    
+    if (impl->socket != -1) {
+        close(impl->socket);
+        impl->socket = -1;
+    }
+    
     std::cout << "Server exiting...\n";
 }
 
