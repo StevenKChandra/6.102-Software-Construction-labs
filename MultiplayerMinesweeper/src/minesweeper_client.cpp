@@ -2,7 +2,8 @@
 
 #include <iostream>
 #include <openssl/err.h>
-#include <poll.h>
+#include <sys/epoll.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include "util.h"
@@ -53,38 +54,54 @@ void MinesweeperClient::connect() {
     char buffer[BUFFER_LEN];
     memset(buffer, 0, BUFFER_LEN);
     
+    #define MAX_EVENTS 2
+    struct epoll_event ev, events[MAX_EVENTS];
+    int epoll_fd, nfds;
+
+    epoll_fd = epoll_create1(0);
+    if (epoll_fd == -1) {
+        throw std::runtime_error("Epoll create failed");
+    }
+
+    ev.data.fd = 0;
+    ev.events = EPOLLIN;
+
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, 0, &ev) == -1) {
+        throw std::runtime_error("epoll ctl on stdin failed");
+    }
+    ev.data.fd = impl->socket;
+    ev.events = EPOLLIN;
+    
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, impl->socket, &ev) == -1) {
+        throw std::runtime_error("epoll ctl on tcp socket failed");
+    }
+
+    Util::set_non_blocking(0);
+
     while (true) {
-        struct pollfd pfd[2];
-        struct pollfd *stdin_pfd = pfd;
-        struct pollfd *socket_pfd = (pfd + 1);
-        stdin_pfd->fd = 0;
-        stdin_pfd->events = POLLIN;
-        socket_pfd->fd = impl->socket;
-        socket_pfd->events = 0;
+        nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, 1000);
 
-        if (poll(pfd, 2, 1000) == 0) {
-            write(impl->socket, buffer, 0);
-            continue;
-        }
+        for (int i = 0; i < nfds; i++) {
+            if (events[i].data.fd == impl->socket && (events[i].events & (EPOLLHUP|EPOLLERR))) {
+                std::cout<<"Server closed connection\n";
+                return;
+            }
 
-        // other end of stream socket is closed
-        if (socket_pfd->revents & (POLLERR | POLLHUP)) {
-            std::cout << "Server closed connection!\n";
-            break;
-        }
+            int read_len = read(0, buffer, BUFFER_LEN);
 
-        int read_len = read(0, buffer, BUFFER_LEN);
+            if (read_len == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) continue;
 
-        int write_len = SSL_write(ssl, buffer, read_len);
+            int write_len = SSL_write(ssl, buffer, read_len);
 
-        if (write_len <= 0) {
-            std::cout << "Send message failed\n";
-            break;
-        }
-        
-        if (strcmp("disconnect\n", buffer) == 0) {
-            std::cout << "Disconnecting...\n";
-            break;
+            if (write_len <= 0) {
+                std::cout << "Send message failed\n";
+                return;
+            }
+            
+            if (strcmp("disconnect\n", buffer) == 0) {
+                std::cout << "Disconnecting...\n";
+                return;
+            }
         }
     }
 }
